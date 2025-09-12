@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Results - DSA Quest</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Results Page -->
+    <div id="resultsPage" class="page active">
+        <div class="container">
+            <div class="results-container">
+                <div class="results-icon">🏆</div>
+                <h1>Quiz Complete!</h1>
+                <p>Great job on finishing the quiz</p>
+
+                <div class="score-card">
+                    <div class="score-percentage" id="scorePercentage">0%</div>
+                    <p id="scoreText">Your Score: 0/0</p>
+                    <div class="stars" id="starsContainer">
+                        <!-- Stars will be populated by JavaScript -->
+                    </div>
+                </div>
+
+                <div class="results-buttons">
+                    <a href="topics.html" class="btn btn-primary btn-lg">Try Another Topic</a>
+                    <a href="dashboard.html" class="btn btn-outline btn-lg">View Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Render quiz results
+        function renderResults() {
+            const results = JSON.parse(localStorage.getItem('quizResults') || '{}');
+            const percentage = results.percentage || 0;
+            
+            document.getElementById('scorePercentage').textContent = percentage + '%';
+            document.getElementById('scoreText').textContent = 
+                `Your Score: ${results.score || 0}/${results.total || 0}`;
+            
+            // Render stars based on percentage
+            const starsContainer = document.getElementById('starsContainer');
+            starsContainer.innerHTML = '';
+            const starCount = Math.floor(percentage / 20);
+            
+            for (let i = 0; i < 5; i++) {
+                const star = document.createElement('span');
+                star.className = i < starCount ? 'star' : 'star empty';
+                star.textContent = '⭐';
+                starsContainer.appendChild(star);
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            renderResults();
+        });
+    </script>
+</body>
+</html>

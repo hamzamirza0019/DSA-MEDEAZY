@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz - DSA Quest</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Quiz Page -->
+    <div id="quizPage" class="page active">
+        <header class="header">
+            <nav class="nav">
+                <a href="topics.html" class="btn btn-ghost">← Back to Topics</a>
+                <div class="quiz-info">
+                    <span id="questionCounter">Question 1 of 5</span>
+                </div>
+            </nav>
+        </header>
+
+        <div class="container">
+            <div class="quiz-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <p class="progress-text" id="progressText">0% Complete</p>
+            </div>
+
+            <div class="quiz-card">
+                <h2 id="questionText">Loading question...</h2>
+                <div class="options" id="optionsContainer">
+                    <!-- Options will be populated by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="questions.js"></script>
+    <script>
+        let selectedTopic = null;
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let userAnswers = [];
+        let currentQuestions = [];
+
+        // Load saved data and start quiz
+        function loadSavedData() {
+            const savedData = localStorage.getItem('dsaQuestData');
+            if (savedData) {
+                const data = JSON.parse(savedData);
+                topics.forEach(topic => {
+                    const savedTopic = data.topics?.find(t => t.id === topic.id);
+                    if (savedTopic) {
+                        topic.completed = savedTopic.completed;
+                    }
+                });
+            }
+        }
+
+        // Save progress
+        function saveData() {
+            const dataToSave = {
+                topics: topics.map(topic => ({
+                    id: topic.id,
+                    completed: topic.completed
+                })),
+                lastUpdated: new Date().toISOString()
+            };
+            localStorage.setItem('dsaQuestData', JSON.stringify(dataToSave));
+        }
+
+        // Start quiz
+        function startQuiz() {
+            selectedTopic = localStorage.getItem('selectedTopic');
+            if (!selectedTopic) {
+                window.location.href = 'topics.html';
+                return;
+            }
+
+            currentQuestions = questionsData[selectedTopic] || [];
+            if (!currentQuestions.length) {
+                alert('No questions available for this topic!');
+                window.location.href = 'topics.html';
+                return;
+            }
+
+            currentQuestionIndex = 0;
+            score = 0;
+            userAnswers = [];
+            renderQuestion();
+        }
+
+        // Render current question
+        function renderQuestion() {
+            const question = currentQuestions[currentQuestionIndex];
+            const progress = ((currentQuestionIndex + 1) / currentQuestions.length) * 100;
+            
+            document.getElementById('progressFill').style.width = progress + '%';
+            document.getElementById('progressText').textContent = Math.round(progress) + '% Complete';
+            document.getElementById('questionCounter').textContent = 
+                `Question ${currentQuestionIndex + 1} of ${currentQuestions.length}`;
+            
+            document.getElementById('questionText').textContent = question.question;
+            
+            const optionsContainer = document.getElementById('optionsContainer');
+            optionsContainer.innerHTML = '';
+            
+            question.options.forEach((option, index) => {
+                const button = document.createElement('button');
+                button.className = 'option-btn';
+                button.innerHTML = `<strong>${String.fromCharCode(65 + index)}.</strong> ${option}`;
+                button.onclick = () => selectAnswer(index);
+                optionsContainer.appendChild(button);
+            });
+        }
+
+        // Handle answer selection
+        function selectAnswer(answerIndex) {
+            const question = currentQuestions[currentQuestionIndex];
+            const buttons = document.querySelectorAll('.option-btn');
+            
+            buttons.forEach(btn => btn.disabled = true);
+            
+            buttons[answerIndex].classList.add(answerIndex === question.correct ? 'correct' : 'incorrect');
+            if (answerIndex !== question.correct) {
+                buttons[question.correct].classList.add('correct');
+            }
+            
+            if (answerIndex === question.correct) {
+                score++;
+            }
+            
+            userAnswers[currentQuestionIndex] = answerIndex;
+            
+            setTimeout(() => {
+                if (currentQuestionIndex < currentQuestions.length - 1) {
+                    currentQuestionIndex++;
+                    renderQuestion();
+                } else {
+                    // Update completion and save
+                    const topic = topics.find(t => t.id === selectedTopic);
+                    if (topic) {
+                        topic.completed = Math.max(topic.completed, currentQuestions.length);
+                        saveData();
+                    }
+                    
+                    // Store results for results page
+                    localStorage.setItem('quizResults', JSON.stringify({
+                        score: score,
+                        total: currentQuestions.length,
+                        percentage: Math.round((score / currentQuestions.length) * 100)
+                    }));
+                    
+                    window.location.href = 'results.html';
+                }
+            }, 1500);
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSavedData();
+            startQuiz();
+        });
+    </script>
+</body>
+</html>

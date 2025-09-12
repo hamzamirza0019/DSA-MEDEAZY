@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Quiz – DSA Quest</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="quiz.js"></script>
+</head>
+<body>
+  <h2>Quiz in Progress</h2>
+  <div id="quiz-container"></div>
+  <button id="next-btn">Next</button>
+  <script>
+    const topic = new URLSearchParams(window.location.search).get('topic');
+const apiUrl = 'https://script.google.com/macros/s/AKfycbzUupCb2HWwLsyU0pTtRA3XqJQc_iaobegAYDaoaf9EDVe7cpFsmDUPehMB804T6xoZ/exec' + topic; 
+
+fetch(apiUrl)
+  .then(res => res.json())
+  .then(data => {
+    // Now use 'data' to build the quiz UI dynamically
+    console.log(data);
+  });
+
+  </script>
+</body>
+</html>
