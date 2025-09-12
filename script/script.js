@@ -40,7 +40,41 @@ function showResultsPage() {
 
 function showDashboard() {
     showPage('dashboardPage');
+    
+    // Show loading state
+    const topicProgress = document.getElementById('topicProgress');
+    const leaderboardContainer = document.getElementById('leaderboardContainer');
+    
+    if (topicProgress) {
+        topicProgress.innerHTML = '<div class="text-center">Loading progress...</div>';
+    }
+    if (leaderboardContainer) {
+        leaderboardContainer.innerHTML = '<div class="text-center">Loading leaderboard...</div>';
+    }
+    
+    // Refresh data from Firebase if user is logged in
+    if (typeof loadUserProgress === 'function') {
+        loadUserProgress();
+    }
+    
     renderDashboard(); // Show progress across topics
+    
+    // Load leaderboard if function exists
+    if (typeof renderLeaderboard === 'function') {
+        renderLeaderboard();
+    }
+}
+
+function scrollToContact() {
+    // First show home page if not already visible
+    showHome();
+    // Then scroll to contact section
+    setTimeout(() => {
+        const contactSection = document.getElementById('contact');
+        if (contactSection) {
+            contactSection.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, 100);
 }
 
 
@@ -131,7 +165,7 @@ function renderQuestion() {
     });
 
     // Hide explanation initially
-    document.getElementById('explanationText').classList.add('hidden');
+    document.getElementById('explanationText').classList.remove('show');
     document.getElementById('explanationText').textContent = '';
 
     // Hide next button initially
@@ -163,10 +197,10 @@ function selectAnswer(answerIndex) {
     // Store the user's answer
     userAnswers[currentQuestionIndex] = answerIndex;
 
-    // Show explanation (FIXED: was not visible due to className)
+    // Show explanation
     const explanationEl = document.getElementById('explanationText');
     explanationEl.textContent = question.explanation;
-    explanationEl.classList.remove('hidden');
+    explanationEl.classList.add('show');
 
     // Show next button
     const nextBtn = document.getElementById('nextBtn');
@@ -185,6 +219,12 @@ function goToNext() {
         if (topic) {
             topic.completed = currentQuestions.length; // Mark all questions as completed for this topic
         }
+        
+        // Save quiz result to Firebase
+        if (typeof saveQuizResult === 'function') {
+            saveQuizResult(selectedTopic, score, currentQuestions.length);
+        }
+        
         showResultsPage(); // Quiz ends, show results
     }
 }
@@ -221,15 +261,16 @@ function renderDashboard() {
         const progressItem = document.createElement('div');
         progressItem.className = 'topic-progress-item';
         
-
-        const progressPercentage = Math.round((topic.completed / questionsData[topic.id].length) * 100);
+        const totalQuestions = questionsData[topic.id]?.length || 0;
+        const completed = topic.completed || 0;
+        const progressPercentage = totalQuestions > 0 ? Math.round((completed / totalQuestions) * 100) : 0;
 
         progressItem.innerHTML = `
             <div class="topic-progress-info">
                 <span class="topic-icon">${topic.icon}</span>
                 <div>
                     <div class="topic-title">${topic.name}</div>
-                    <div class="topic-subtitle">${topic.completed}/${questionsData[topic.id].length} completed</div>
+                    <div class="topic-subtitle">${completed}/${totalQuestions} completed</div>
                 </div>
             </div>
             <div class="topic-progress-stats">
@@ -248,7 +289,76 @@ function renderDashboard() {
 }
 
 
+// ======= MODAL FUNCTIONS =======
+function showLoginModal() {
+    document.getElementById('loginModal').style.display = 'block';
+    document.getElementById('signupModal').style.display = 'none';
+}
+
+function showSignupModal() {
+    document.getElementById('signupModal').style.display = 'block';
+    document.getElementById('loginModal').style.display = 'none';
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+    const loginModal = document.getElementById('loginModal');
+    const signupModal = document.getElementById('signupModal');
+    
+    if (event.target === loginModal) {
+        loginModal.style.display = 'none';
+    }
+    if (event.target === signupModal) {
+        signupModal.style.display = 'none';
+    }
+}
+
+// ======= FORM HANDLERS =======
+function handleLogin(event) {
+    event.preventDefault();
+    const email = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPassword').value;
+    
+    if (typeof signInWithEmail === 'function') {
+        signInWithEmail(email, password);
+        closeModal('loginModal');
+    }
+}
+
+function handleSignup(event) {
+    event.preventDefault();
+    const name = document.getElementById('signupName').value;
+    const email = document.getElementById('signupEmail').value;
+    const password = document.getElementById('signupPassword').value;
+    
+    if (typeof signUpWithEmail === 'function') {
+        signUpWithEmail(email, password, name);
+        closeModal('signupModal');
+    }
+}
+
 // ======= INITIALIZE ON PAGE LOAD =======
 document.addEventListener('DOMContentLoaded', function () {
     showHome(); // Start from home page
+    
+    // Initialize auth UI after Firebase loads
+    setTimeout(() => {
+        if (typeof updateAuthUI === 'function') {
+            updateAuthUI();
+        } else {
+            console.log('Firebase not loaded, showing fallback UI');
+            // Show fallback auth UI
+            const authButtons = document.getElementById('authButtons');
+            if (authButtons) {
+                authButtons.innerHTML = `
+                    <button class="btn btn-outline btn-sm" onclick="alert('Firebase not loaded. Please refresh the page.')">Login</button>
+                    <button class="btn btn-primary btn-sm" onclick="alert('Firebase not loaded. Please refresh the page.')">Sign Up</button>
+                `;
+            }
+        }
+    }, 2000);
 });

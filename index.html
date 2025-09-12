@@ -26,7 +26,7 @@
         <!-- Header -->
         <nav class="navbar navbar-expand-lg navbar-light bg-white shadow px-3 py-2">
             <div class="container-fluid">
-                <a class="navbar-brand fw-bold text-primary" href="#" style="font-family: 'Raleway', sans-serif; font-size: 1.5rem;">
+                <a class="navbar-brand fw-bold text-primary" href="#" onclick="showHome()" style="font-family: 'Raleway', sans-serif; font-size: 1.5rem;">
                     DSA Med Eazy
                 </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -34,11 +34,14 @@
                 </button>
                 <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
                     <ul class="navbar-nav me-3">
-                        <li class="nav-item"><a class="nav-link" href="/index.html">Home</a></li>
-                        <li class="nav-item"><a class="nav-link" href="/projects.html">Projects</a></li>
-                        <li class="nav-item"><a class="nav-link" href="/dsa.html">DSA Guide</a></li>
-                        <li class="nav-item"><a class="nav-link" href="#contact">Contact</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" onclick="showHome()">Home</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" onclick="showTopics()">Topics</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#" onclick="showDashboard()">Dashboard</a></li>
+                        <li class="nav-item"><a class="nav-link" href="#contact" onclick="scrollToContact()">Contact</a></li>
                     </ul>
+                    <div id="authButtons" class="ms-lg-2 mt-2 mt-lg-0">
+                        <!-- Auth buttons will be populated by JavaScript -->
+                    </div>
                     <button class="btn btn-primary ms-lg-2 mt-2 mt-lg-0" onclick="showTopics()">Get Started</button>
                 </div>
             </div>
@@ -64,7 +67,7 @@
         <section class="features">
             <div class="container">
                 <h2 class="section-title">Why Choose DSA Quest?</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="features-grid">
                     <div class="feature-card">
                         <div class="feature-icon">
                           <i class="fas fa-layer-group fa-2x text-indigo-600 mb-3"></i>
@@ -97,26 +100,24 @@
             </div>
         </section>
         <!-- Contact Section -->
-     <section id="contact" class="contact py-16 bg-white">
+     <section id="contact" class="contact">
        <div class="container">
-         <h2 class="section-title text-3xl font-bold text-center mb-10">Get in Touch</h2>
+         <h2 class="section-title">Get in Touch</h2>
 
-         <div class="contact-container flex flex-col md:flex-row gap-12">
+         <div class="contact-container">
            <!-- Contact Info -->
-           <div class="contact-info flex-1 space-y-4">
-             <div class="contact-item flex items-center gap-4">
-               <i class="fas fa-envelope text-indigo-600 text-xl"></i>
+           <div class="contact-info">
+             <div class="contact-item">
+               <i class="fas fa-envelope"></i>
                <a href="mailto:mirza.king0019@gmail.com">contact@dsamedeazy.com</a>
-
              </div>
-             <div class="contact-item flex items-center gap-4">
-               <i class="fab fa-github text-indigo-600 text-xl"></i>
+             <div class="contact-item">
+               <i class="fab fa-github"></i>
                <a href="https://github.com/hamzamirza0019/DSA-med-eazy">github.com/DSA_med_eazy</a>
              </div>
-             <div class="contact-item flex items-center gap-4">
-               <i class="fab fa-twitter text-indigo-600 text-xl"></i>
+             <div class="contact-item">
+               <i class="fab fa-twitter"></i>
                <a href="https://twitter.com/dsaMedEazy" target="_blank" rel="noopener noreferrer">@dsaMedEazy</a>
-
              </div>
              <!-- <div class="social-links flex gap-4 mt-4">
                <a href="https://github.com" target="_blank" aria-label="GitHub"><i class="fab fa-github text-2xl"></i></a>
@@ -126,20 +127,20 @@
            </div>
 
            <!-- Contact Form -->
-           <form class="contact-form flex-1 space-y-4" onsubmit="event.preventDefault(); alert('Message sent!');">
+           <form class="contact-form" onsubmit="event.preventDefault(); alert('Message sent!');">
              <div class="form-group">
-               <label for="name" class="block mb-1 font-medium">Name</label>
-               <input type="text" id="name" placeholder="Your name" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400">
+               <label for="name">Name</label>
+               <input type="text" id="name" placeholder="Your name">
              </div>
              <div class="form-group">
-               <label for="email" class="block mb-1 font-medium">Email</label>
-               <input type="email" id="email" placeholder="Your email" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400">
+               <label for="email">Email</label>
+               <input type="email" id="email" placeholder="Your email">
              </div>
              <div class="form-group">
-               <label for="message" class="block mb-1 font-medium">Message</label>
-               <textarea id="message" rows="5" placeholder="Your message" class="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400"></textarea>
+               <label for="message">Message</label>
+               <textarea id="message" rows="5" placeholder="Your message"></textarea>
              </div>
-             <button type="submit" class="btn btn-primary bg-indigo-600 text-white px-6 py-2 rounded hover:bg-indigo-700">Send Message</button>
+             <button type="submit" class="btn btn-primary">Send Message</button>
            </form>
          </div>
        </div>
@@ -192,19 +193,18 @@
                 <p class="progress-text" id="progressText">0% Complete</p>
             </div>
 
-            <div class="quiz-card space-y-6">
-                <h2 id="questionText" class="text-xl font-semibold">Loading question...</h2>
+            <div class="quiz-card">
+                <h2 id="questionText">Loading question...</h2>
 
-                <div class="options space-y-2" id="optionsContainer">
+                <div class="options" id="optionsContainer">
                     <!-- Options will be populated by JavaScript -->
                 </div>
 
-
-                <div class="flex justify-between mt-6">
-                    <button type="button" class="bg-gray-200 hover:bg-gray-300 text-black px-4 py-2 rounded" onclick="goToPrevious()">← Previous</button>
-                    <button type="button" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded" onclick="goToNext()">Next →</button>
+                <div class="quiz-navigation">
+                    <button type="button" class="btn btn-secondary" onclick="goToPrevious()">← Previous</button>
+                    <button type="button" class="btn btn-primary" onclick="goToNext()">Next →</button>
                 </div>
-                <p id="explanationText" class="mt-4 text-sm text-gray-700 hidden"></p>
+                <p id="explanationText" class="explanation-text"></p>
 
             </div>
 
@@ -257,22 +257,22 @@
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-icon">
-                     <i class="fas fa-trophy fa-2x text-yellow-500 mb-3"></i>
+                     <i class="fas fa-question-circle fa-2x"></i>
                     </div>
-                    <div id="questionsCompleted" class="stat-value">0/100</div>
-                    <div class="stat-label">Questions Completed</div>
+                    <div id="totalAttempted" class="stat-value">0</div>
+                    <div class="stat-label">Total Attempted</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-icon"><i class="fas fa-chart-line fa-2x text-indigo-600 mb-3"></i>
+                    <div class="stat-icon"><i class="fas fa-check-circle fa-2x"></i>
                 </div>
-                    <div id="averageScore" class="stat-value">%</div>
+                    <div id="totalCorrect" class="stat-value">0</div>
+                    <div class="stat-label">Correct Answers</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-chart-line fa-2x"></i>
+                </div>
+                    <div id="averageScore" class="stat-value">0%</div>
                     <div class="stat-label">Average Score</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon"><i class="fas fa-fire fa-2x text-orange-500"></i>
-                </div>
-                    <div id="currentStreak" class="stat-value">days</div>
-                    <div class="stat-label">Current Streak</div>
                 </div>
             </div>
 
@@ -282,18 +282,103 @@
                     <!-- Topic progress will be populated by JavaScript -->
                 </div>
             </div>
+
+            <div class="leaderboard-section">
+                <h2>Leaderboard</h2>
+                <div class="leaderboard-container" id="leaderboardContainer">
+                    <!-- Leaderboard will be populated by JavaScript -->
+                </div>
+            </div>
         </div>
     </div>
 
-   <!-- Tailwind CSS CDN -->
-<script src="https://cdn.tailwindcss.com"></script>
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Login to DSA Med Eazy</h3>
+                <span class="close" onclick="closeModal('loginModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="loginForm" onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label for="loginEmail">Email</label>
+                        <input type="email" id="loginEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">Password</label>
+                        <input type="password" id="loginPassword" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Login</button>
+                </form>
+                <div class="divider">
+                    <span>or</span>
+                </div>
+                <button class="btn btn-outline w-100" onclick="signInWithGoogle()">
+                    <i class="fab fa-google"></i> Login with Google
+                </button>
+                <div class="divider">
+                    <span>or</span>
+                </div>
+                <button class="btn btn-secondary w-100" onclick="demoSignIn()">
+                    <i class="fas fa-play"></i> Try Demo Mode
+                </button>
+                <p class="text-center mt-3">
+                    Don't have an account? 
+                    <a href="#" onclick="showSignupModal()">Sign up here</a>
+                </p>
+            </div>
+        </div>
+    </div>
 
+    <!-- Signup Modal -->
+    <div id="signupModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Sign up for DSA Med Eazy</h3>
+                <span class="close" onclick="closeModal('signupModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="signupForm" onsubmit="handleSignup(event)">
+                    <div class="form-group">
+                        <label for="signupName">Full Name</label>
+                        <input type="text" id="signupName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="signupEmail">Email</label>
+                        <input type="email" id="signupEmail" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="signupPassword">Password</label>
+                        <input type="password" id="signupPassword" required minlength="6">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Sign Up</button>
+                </form>
+                <div class="divider">
+                    <span>or</span>
+                </div>
+                <button class="btn btn-outline w-100" onclick="signInWithGoogle()">
+                    <i class="fab fa-google"></i> Sign up with Google
+                </button>
+                <div class="divider">
+                    <span>or</span>
+                </div>
+                <button class="btn btn-secondary w-100" onclick="demoSignUp()">
+                    <i class="fas fa-play"></i> Try Demo Mode
+                </button>
+                <p class="text-center mt-3">
+                    Already have an account? 
+                    <a href="#" onclick="showLoginModal()">Login here</a>
+                </p>
+            </div>
+        </div>
+    </div>
 
     <script src="script/questions.js"></script>
-    <!-- Firebase SDKs -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js"></script>
+    <!-- Firebase SDKs v9 -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
   <!-- Your Firebase logic file -->
 <script src="script/firebase.js"></script>
@@ -301,4 +386,10 @@
 <!-- Your main app logic -->
 <script src="script/script.js"></script>
 </body>
+</html>
+
+<script src="script/script.js"></script>
+
+</body>
+
 </html>
