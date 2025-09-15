@@ -820,6 +820,10 @@ function signInWithEmail(email, password) {
     .then(result => {
       currentUser = result.user;
       console.log('User signed in successfully:', currentUser.email);
+      // Ensure user data is saved to Firestore
+      return saveUserDataToFirestore(currentUser);
+    })
+    .then(() => {
       saveUserSession(currentUser);
       closeLoginModal();
       updateAuthUI();
@@ -878,6 +882,10 @@ function signUpWithEmail(email, password, displayName) {
     })
     .then(() => {
       console.log('User profile updated:', currentUser.displayName);
+      // Save user data to Firestore
+      return saveUserDataToFirestore(currentUser, displayName);
+    })
+    .then(() => {
       saveUserSession(currentUser);
       closeLoginModal();
       updateAuthUI();
@@ -1239,11 +1247,392 @@ function showNotification(message, type = 'info') {
   }, 3000);
 }
 
+// ======= USERNAME RESOLUTION FUNCTIONS =======
+
+// Get user display name with comprehensive fallback strategy
+function getUserDisplayName(userId, userData = null) {
+  try {
+    // Strategy 1: Check if this is the current user and use their displayName from Auth
+    if (currentUser && userId === currentUser.uid) {
+      if (currentUser.displayName && currentUser.displayName.trim()) {
+        return currentUser.displayName.trim();
+      }
+    }
+
+    // Strategy 2: Check userData from Firestore
+    if (userData) {
+      // Check various name fields in order of preference
+      if (userData.displayName && userData.displayName.trim()) {
+        return userData.displayName.trim();
+      }
+      
+      if (userData.name && userData.name.trim()) {
+        return userData.name.trim();
+      }
+      
+      if (userData.username && userData.username.trim()) {
+        return userData.username.trim();
+      }
+      
+      if (userData.fullName && userData.fullName.trim()) {
+        return userData.fullName.trim();
+      }
+    }
+
+    // Strategy 3: Use email prefix as fallback
+    if (userData && userData.email) {
+      return userData.email.split('@')[0];
+    }
+
+    // Strategy 4: Use current user's email if it's the current user
+    if (currentUser && userId === currentUser.uid && currentUser.email) {
+      return currentUser.email.split('@')[0];
+    }
+
+    // Strategy 5: Try to fetch from Firestore if userData is not provided
+    if (!userData && db) {
+      // This is a fallback for when userData is not provided
+      // We'll return a loading state and let the caller handle the async fetch
+      return 'Loading...';
+    }
+
+    // Strategy 6: Final fallback
+    return 'Anonymous User';
+
+  } catch (error) {
+    console.error('Error resolving username:', error);
+    return 'Anonymous User';
+  }
+}
+
+// Save user data to Firestore (used during signup and login)
+async function saveUserDataToFirestore(user, displayName = null) {
+  if (!db || !user) return;
+  
+  try {
+    const userDocRef = db.collection('users').doc(user.uid);
+    const userDoc = await userDocRef.get();
+    
+    // Get the display name to save
+    const finalDisplayName = displayName || user.displayName || user.email?.split('@')[0] || 'Anonymous User';
+    
+    if (!userDoc.exists) {
+      // Create new user document
+      const initialUserData = {
+        uid: user.uid,
+        email: user.email,
+        displayName: finalDisplayName,
+        createdAt: new Date().toISOString(),
+        lastActiveDate: new Date().toISOString(),
+        totalAttempted: 0,
+        totalCorrect: 0,
+        averageScore: 0,
+        currentStreak: 0,
+        totalQuestionsCompleted: 0
+      };
+      
+      await userDocRef.set(initialUserData);
+      console.log('New user document created in Firestore:', finalDisplayName);
+    } else {
+      // Update existing document
+      const userData = userDoc.data();
+      const updateData = {
+        lastActiveDate: new Date().toISOString()
+      };
+      
+      // Update display name if it's missing or different
+      if (!userData.displayName || userData.displayName !== finalDisplayName) {
+        updateData.displayName = finalDisplayName;
+        console.log('User display name updated in Firestore:', finalDisplayName);
+      }
+      
+      // Update email if it's missing
+      if (!userData.email && user.email) {
+        updateData.email = user.email;
+      }
+      
+      await userDocRef.update(updateData);
+      console.log('User document updated in Firestore');
+    }
+  } catch (error) {
+    console.error('Error saving user data to Firestore:', error);
+    throw error; // Re-throw to handle in calling function
+  }
+}
+
+// Ensure user's display name is saved to Firestore
+async function ensureUserDisplayNameInFirestore(user) {
+  if (!db || !user) return;
+  
+  try {
+    const userDocRef = db.collection('users').doc(user.uid);
+    const userDoc = await userDocRef.get();
+    
+    // Get the display name to save
+    const displayName = user.displayName || user.email?.split('@')[0] || 'Anonymous User';
+    
+    if (!userDoc.exists) {
+      // Create new user document with display name
+      const initialUserData = {
+        uid: user.uid,
+        email: user.email,
+        displayName: displayName,
+        createdAt: new Date().toISOString(),
+        lastActiveDate: new Date().toISOString(),
+        totalAttempted: 0,
+        totalCorrect: 0,
+        averageScore: 0,
+        currentStreak: 0,
+        totalQuestionsCompleted: 0
+      };
+      
+      await userDocRef.set(initialUserData);
+      console.log('User document created with display name:', displayName);
+    } else {
+      // Update existing document with display name if it's missing or different
+      const userData = userDoc.data();
+      if (!userData.displayName || userData.displayName !== displayName) {
+        await userDocRef.update({
+          displayName: displayName,
+          lastActiveDate: new Date().toISOString()
+        });
+        console.log('User display name updated in Firestore:', displayName);
+      } else {
+        // Just update last active date
+        await userDocRef.update({
+          lastActiveDate: new Date().toISOString()
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error ensuring user display name in Firestore:', error);
+  }
+}
+
+// Update user's display name in both Auth and Firestore
+async function updateUserDisplayName(newDisplayName) {
+  if (!currentUser || !db) {
+    console.error('No authenticated user or database');
+    return false;
+  }
+
+  if (!newDisplayName || !newDisplayName.trim()) {
+    console.error('Invalid display name');
+    return false;
+  }
+
+  try {
+    const trimmedName = newDisplayName.trim();
+    
+    // Update Firebase Auth profile
+    await currentUser.updateProfile({
+      displayName: trimmedName
+    });
+
+    // Update Firestore document
+    const userDocRef = db.collection('users').doc(currentUser.uid);
+    await userDocRef.update({
+      displayName: trimmedName,
+      lastUpdated: new Date().toISOString()
+    });
+
+    console.log('Display name updated successfully:', trimmedName);
+    
+    // Refresh leaderboard to show updated name
+    if (typeof renderLeaderboard === 'function') {
+      renderLeaderboard();
+    }
+    
+    return true;
+
+  } catch (error) {
+    console.error('Error updating display name:', error);
+    return false;
+  }
+}
+
+// Test function to verify username resolution (for debugging)
+function testUsernameResolution() {
+  console.log('=== Testing Username Resolution ===');
+  
+  if (currentUser) {
+    console.log('Current user:', {
+      uid: currentUser.uid,
+      displayName: currentUser.displayName,
+      email: currentUser.email
+    });
+    
+    // Test with current user
+    const currentUserName = getUserDisplayName(currentUser.uid, {});
+    console.log('Resolved name for current user:', currentUserName);
+  } else {
+    console.log('No current user logged in');
+  }
+  
+  // Test with sample data
+  const testUserData = {
+    displayName: 'Test User',
+    email: 'test@example.com'
+  };
+  const testUserName = getUserDisplayName('test-user-id', testUserData);
+  console.log('Resolved name for test user:', testUserName);
+  
+  console.log('=== End Test ===');
+}
+
 // ======= LEADERBOARD FUNCTIONS =======
 
-// Get leaderboard data from multiple sources
+// Global leaderboard data and listener
+let leaderboardData = [];
+let leaderboardListener = null;
+
+// Get leaderboard data from Firestore with real-time updates
 function getLeaderboard() {
-  return Promise.resolve(getEnhancedLeaderboard());
+  if (demoMode) {
+    return Promise.resolve(getDemoLeaderboard());
+  }
+  
+  if (!db) {
+    console.error('Firestore not available');
+    return Promise.resolve(getDemoLeaderboard());
+  }
+  
+  return fetchAllUsersFromFirestore();
+}
+
+// Fetch all users from Firestore for leaderboard
+function fetchAllUsersFromFirestore() {
+  return new Promise((resolve, reject) => {
+    console.log('Fetching all users from Firestore...');
+    
+    db.collection('users')
+      .orderBy('averageScore', 'desc')
+      .orderBy('totalAttempted', 'desc')
+      .orderBy('lastActiveDate', 'desc')
+      .get()
+      .then(querySnapshot => {
+        const users = [];
+        
+        querySnapshot.forEach(doc => {
+          try {
+            const userData = doc.data();
+            const userId = doc.id;
+            
+            // Only include users with some progress
+            if (userData.totalAttempted > 0) {
+              // Get display name with better fallback strategy
+              let displayName = getUserDisplayName(userId, userData);
+              
+              // If display name is still "Loading..." or "Anonymous User", try to get a better fallback
+              if (displayName === 'Loading...') {
+                displayName = userData.email ? userData.email.split('@')[0] : 'User ' + userId.substring(0, 8);
+              }
+              
+              users.push({
+                id: userId,
+                name: displayName,
+                email: userData.email || '',
+                totalAttempted: userData.totalAttempted || 0,
+                totalCorrect: userData.totalCorrect || 0,
+                averageScore: userData.averageScore || 0,
+                totalQuestionsCompleted: userData.totalQuestionsCompleted || 0,
+                currentStreak: userData.currentStreak || 0,
+                lastActiveDate: userData.lastActiveDate || new Date().toISOString(),
+                createdAt: userData.createdAt || new Date().toISOString(),
+                isCurrentUser: currentUser && userId === currentUser.uid,
+                source: 'firebase'
+              });
+            }
+          } catch (error) {
+            console.error('Error processing user data in leaderboard:', error);
+            // Continue with other users
+          }
+        });
+        
+        console.log(`Fetched ${users.length} users from Firestore`);
+        leaderboardData = users;
+        resolve(users);
+      })
+      .catch(error => {
+        console.error('Error fetching users from Firestore:', error);
+        // Fallback to demo data on error
+        resolve(getDemoLeaderboard());
+      });
+  });
+}
+
+// Set up real-time listener for leaderboard updates
+function setupLeaderboardListener() {
+  if (demoMode || !db) {
+    console.log('Skipping leaderboard listener setup (demo mode or no database)');
+    return;
+  }
+  
+  // Remove existing listener if any
+  if (leaderboardListener) {
+    leaderboardListener();
+    leaderboardListener = null;
+  }
+  
+  console.log('Setting up real-time leaderboard listener...');
+  
+  leaderboardListener = db.collection('users')
+    .orderBy('averageScore', 'desc')
+    .orderBy('totalAttempted', 'desc')
+    .orderBy('lastActiveDate', 'desc')
+    .onSnapshot(
+      querySnapshot => {
+        console.log('Leaderboard data updated in real-time');
+        const users = [];
+        
+        querySnapshot.forEach(doc => {
+          try {
+            const userData = doc.data();
+            const userId = doc.id;
+            
+            // Only include users with some progress
+            if (userData.totalAttempted > 0) {
+              // Get display name with better fallback strategy
+              let displayName = getUserDisplayName(userId, userData);
+              
+              // If display name is still "Loading..." or "Anonymous User", try to get a better fallback
+              if (displayName === 'Loading...') {
+                displayName = userData.email ? userData.email.split('@')[0] : 'User ' + userId.substring(0, 8);
+              }
+              
+              users.push({
+                id: userId,
+                name: displayName,
+                email: userData.email || '',
+                totalAttempted: userData.totalAttempted || 0,
+                totalCorrect: userData.totalCorrect || 0,
+                averageScore: userData.averageScore || 0,
+                totalQuestionsCompleted: userData.totalQuestionsCompleted || 0,
+                currentStreak: userData.currentStreak || 0,
+                lastActiveDate: userData.lastActiveDate || new Date().toISOString(),
+                createdAt: userData.createdAt || new Date().toISOString(),
+                isCurrentUser: currentUser && userId === currentUser.uid,
+                source: 'firebase'
+              });
+            }
+          } catch (error) {
+            console.error('Error processing user data in real-time listener:', error);
+            // Continue with other users
+          }
+        });
+        
+        leaderboardData = users;
+        
+        // Update UI if leaderboard is currently visible
+        if (currentView === 'dashboard' && typeof renderLeaderboard === 'function') {
+          renderLeaderboard();
+        }
+      },
+      error => {
+        console.error('Error in leaderboard listener:', error);
+        showNotification('Failed to load real-time leaderboard updates', 'warning');
+      }
+    );
 }
 
 // Enhanced leaderboard that combines Firebase and localStorage data
@@ -1280,6 +1669,89 @@ function getEnhancedLeaderboard() {
   return sortLeaderboardByAverageScore(uniqueLeaderboard);
 }
 
+// Get demo leaderboard data
+function getDemoLeaderboard() {
+  const leaderboard = [];
+  
+  // Get current user data if in demo mode
+  if (currentUser && userProgress) {
+    leaderboard.push({
+      id: currentUser.uid || 'demo-user',
+      name: currentUser.displayName || 'Demo User',
+      totalAttempted: userProgress.totalAttempted || 0,
+      totalCorrect: userProgress.totalCorrect || 0,
+      averageScore: userProgress.averageScore || 0,
+      totalQuestionsCompleted: userProgress.totalQuestionsCompleted || 0,
+      currentStreak: userProgress.currentStreak || 0,
+      lastActiveDate: userProgress.lastActiveDate || new Date().toISOString(),
+      isCurrentUser: true,
+      source: 'demo'
+    });
+  }
+  
+  // Add some sample users for demonstration
+  const sampleUsers = [
+    { 
+      id: 'alice', 
+      name: 'Alice Johnson', 
+      totalAttempted: 45, 
+      totalCorrect: 38, 
+      averageScore: 84, 
+      totalQuestionsCompleted: 40,
+      currentStreak: 5,
+      lastActiveDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      source: 'sample' 
+    },
+    { 
+      id: 'bob', 
+      name: 'Bob Smith', 
+      totalAttempted: 38, 
+      totalCorrect: 30, 
+      averageScore: 79, 
+      totalQuestionsCompleted: 35,
+      currentStreak: 3,
+      lastActiveDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+      source: 'sample' 
+    },
+    { 
+      id: 'carol', 
+      name: 'Carol Davis', 
+      totalAttempted: 32, 
+      totalCorrect: 26, 
+      averageScore: 81, 
+      totalQuestionsCompleted: 30,
+      currentStreak: 7,
+      lastActiveDate: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+      source: 'sample' 
+    },
+    { 
+      id: 'david', 
+      name: 'David Wilson', 
+      totalAttempted: 28, 
+      totalCorrect: 21, 
+      averageScore: 75, 
+      totalQuestionsCompleted: 25,
+      currentStreak: 1,
+      lastActiveDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      source: 'sample' 
+    },
+    { 
+      id: 'eva', 
+      name: 'Eva Brown', 
+      totalAttempted: 25, 
+      totalCorrect: 22, 
+      averageScore: 88, 
+      totalQuestionsCompleted: 22,
+      currentStreak: 12,
+      lastActiveDate: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
+      source: 'sample' 
+    }
+  ];
+  
+  leaderboard.push(...sampleUsers);
+  return sortLeaderboardByAverageScore(leaderboard);
+}
+
 // Get demo users from localStorage
 function getDemoUsersFromStorage() {
   const demoUsers = [];
@@ -1305,16 +1777,6 @@ function getDemoUsersFromStorage() {
     }
   }
   
-  // Add some sample users for demonstration
-  const sampleUsers = [
-    { id: 'alice', name: 'Alice Johnson', totalAttempted: 45, totalCorrect: 38, averageScore: 84, source: 'sample' },
-    { id: 'bob', name: 'Bob Smith', totalAttempted: 38, totalCorrect: 30, averageScore: 79, source: 'sample' },
-    { id: 'carol', name: 'Carol Davis', totalAttempted: 32, totalCorrect: 26, averageScore: 81, source: 'sample' },
-    { id: 'david', name: 'David Wilson', totalAttempted: 28, totalCorrect: 21, averageScore: 75, source: 'sample' },
-    { id: 'eva', name: 'Eva Brown', totalAttempted: 25, totalCorrect: 22, averageScore: 88, source: 'sample' }
-  ];
-  
-  demoUsers.push(...sampleUsers);
   return demoUsers;
 }
 
@@ -1348,7 +1810,69 @@ function sortLeaderboardByAverageScore(users) {
     if (b.totalAttempted !== a.totalAttempted) {
       return b.totalAttempted - a.totalAttempted;
     }
-    // Tertiary sort: name (ascending)
+    // Tertiary sort: total correct (descending)
+    if (b.totalCorrect !== a.totalCorrect) {
+      return b.totalCorrect - a.totalCorrect;
+    }
+    // Quaternary sort: current streak (descending)
+    if (b.currentStreak !== a.currentStreak) {
+      return b.currentStreak - a.currentStreak;
+    }
+    // Quinary sort: last active date (descending - more recent first)
+    if (b.lastActiveDate !== a.lastActiveDate) {
+      return new Date(b.lastActiveDate) - new Date(a.lastActiveDate);
+    }
+    // Final sort: name (ascending)
+    return a.name.localeCompare(b.name);
+  });
+}
+
+// Sort leaderboard by different criteria
+function sortLeaderboard(users, sortBy = 'averageScore') {
+  return users.sort((a, b) => {
+    switch (sortBy) {
+      case 'totalScore':
+        // Sort by total correct answers
+        if (b.totalCorrect !== a.totalCorrect) {
+          return b.totalCorrect - a.totalCorrect;
+        }
+        break;
+      case 'totalAttempted':
+        // Sort by total questions attempted
+        if (b.totalAttempted !== a.totalAttempted) {
+          return b.totalAttempted - a.totalAttempted;
+        }
+        break;
+      case 'streak':
+        // Sort by current streak
+        if (b.currentStreak !== a.currentStreak) {
+          return b.currentStreak - a.currentStreak;
+        }
+        break;
+      case 'recent':
+        // Sort by last active date
+        if (b.lastActiveDate !== a.lastActiveDate) {
+          return new Date(b.lastActiveDate) - new Date(a.lastActiveDate);
+        }
+        break;
+      case 'averageScore':
+      default:
+        // Sort by average score (default)
+        if (b.averageScore !== a.averageScore) {
+          return b.averageScore - a.averageScore;
+        }
+        break;
+    }
+    
+    // Secondary sort: average score
+    if (b.averageScore !== a.averageScore) {
+      return b.averageScore - a.averageScore;
+    }
+    // Tertiary sort: total attempted
+    if (b.totalAttempted !== a.totalAttempted) {
+      return b.totalAttempted - a.totalAttempted;
+    }
+    // Final sort: name
     return a.name.localeCompare(b.name);
   });
 }
@@ -1397,7 +1921,7 @@ function renderLeaderboard() {
         return;
       }
       
-      // Add header with stats summary
+      // Add header with stats summary and sorting options
       const header = document.createElement('div');
       header.className = 'leaderboard-header';
       header.innerHTML = `
@@ -1405,7 +1929,16 @@ function renderLeaderboard() {
           <h3>🏆 Leaderboard</h3>
           <p class="text-sm">${leaderboard.length} players • Sorted by average score</p>
         </div>
-        ${demoMode ? '<div class="demo-badge">Demo Mode</div>' : ''}
+        <div class="leaderboard-controls">
+          <select id="leaderboardSort" onchange="changeLeaderboardSort(this.value)" class="sort-select">
+            <option value="averageScore">Sort by Average Score</option>
+            <option value="totalScore">Sort by Total Score</option>
+            <option value="totalAttempted">Sort by Questions Attempted</option>
+            <option value="streak">Sort by Current Streak</option>
+            <option value="recent">Sort by Most Recent</option>
+          </select>
+          ${demoMode ? '<div class="demo-badge">Demo Mode</div>' : ''}
+        </div>
       `;
       leaderboardContainer.appendChild(header);
       
@@ -1424,6 +1957,9 @@ function renderLeaderboard() {
         
         // Calculate accuracy percentage
         const accuracy = user.totalAttempted > 0 ? Math.round((user.totalCorrect / user.totalAttempted) * 100) : 0;
+        
+        // Format last active date
+        const lastActive = user.lastActiveDate ? formatLastActive(user.lastActiveDate) : 'Unknown';
         
         const userCard = document.createElement('div');
         userCard.className = userCardClass;
@@ -1453,6 +1989,14 @@ function renderLeaderboard() {
                 <span class="stat-label">Avg Score:</span>
                 <span class="stat-value">${user.averageScore}%</span>
               </div>
+              <div class="stat-item">
+                <span class="stat-label">Streak:</span>
+                <span class="stat-value">${user.currentStreak || 0}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">Last Active:</span>
+                <span class="stat-value">${lastActive}</span>
+              </div>
             </div>
           </div>
           <div class="leaderboard-progress">
@@ -1467,13 +2011,16 @@ function renderLeaderboard() {
       
       leaderboardContainer.appendChild(leaderboardList);
       
-      // Add refresh button
+      // Add refresh button and real-time indicator
       const refreshButton = document.createElement('div');
       refreshButton.className = 'leaderboard-refresh';
       refreshButton.innerHTML = `
-        <button class="btn btn-outline btn-sm" onclick="updateLeaderboardRealTime()">
-          <i class="fas fa-sync-alt"></i> Refresh
-        </button>
+        <div class="refresh-controls">
+          <button class="btn btn-outline btn-sm" onclick="updateLeaderboardRealTime()">
+            <i class="fas fa-sync-alt"></i> Refresh
+          </button>
+          ${!demoMode ? '<span class="realtime-indicator">🟢 Live Updates</span>' : ''}
+        </div>
       `;
       leaderboardContainer.appendChild(refreshButton);
       
@@ -1484,10 +2031,98 @@ function renderLeaderboard() {
         <div class="leaderboard-error">
           <div class="error-icon">⚠️</div>
           <p class="text-center">Error loading leaderboard</p>
+          <p class="text-center text-sm">${error.message || 'Please check your connection and try again.'}</p>
           <button class="btn btn-primary btn-sm" onclick="renderLeaderboard()">Try Again</button>
         </div>
       `;
     });
+}
+
+// Change leaderboard sorting
+function changeLeaderboardSort(sortBy) {
+  if (!leaderboardData || leaderboardData.length === 0) return;
+  
+  const sortedData = sortLeaderboard([...leaderboardData], sortBy);
+  const leaderboardList = document.querySelector('.leaderboard-list');
+  if (!leaderboardList) return;
+  
+  // Clear and re-render the list
+  leaderboardList.innerHTML = '';
+  
+  sortedData.forEach((user, index) => {
+    const rank = index + 1;
+    const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
+    const rankDisplay = medal || `#${rank}`;
+    
+    const isCurrentUser = user.isCurrentUser || (currentUser && user.id === currentUser.uid);
+    const userCardClass = `leaderboard-item ${isCurrentUser ? 'current-user' : ''} rank-${rank}`;
+    const accuracy = user.totalAttempted > 0 ? Math.round((user.totalCorrect / user.totalAttempted) * 100) : 0;
+    const lastActive = user.lastActiveDate ? formatLastActive(user.lastActiveDate) : 'Unknown';
+    
+    const userCard = document.createElement('div');
+    userCard.className = userCardClass;
+    userCard.innerHTML = `
+      <div class="leaderboard-rank">
+        <span class="rank-number">${rankDisplay}</span>
+      </div>
+      <div class="leaderboard-user-info">
+        <div class="user-name">
+          ${user.name}
+          ${isCurrentUser ? '<span class="you-badge">You</span>' : ''}
+        </div>
+        <div class="user-stats">
+          <div class="stat-item">
+            <span class="stat-label">Attempted:</span>
+            <span class="stat-value">${user.totalAttempted}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Correct:</span>
+            <span class="stat-value">${user.totalCorrect}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Accuracy:</span>
+            <span class="stat-value">${accuracy}%</span>
+          </div>
+          <div class="stat-item highlight">
+            <span class="stat-label">Avg Score:</span>
+            <span class="stat-value">${user.averageScore}%</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Streak:</span>
+            <span class="stat-value">${user.currentStreak || 0}</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">Last Active:</span>
+            <span class="stat-value">${lastActive}</span>
+          </div>
+        </div>
+      </div>
+      <div class="leaderboard-progress">
+        <div class="progress-bar">
+          <div class="progress-fill" style="width: ${user.averageScore}%"></div>
+        </div>
+      </div>
+    `;
+    
+    leaderboardList.appendChild(userCard);
+  });
+}
+
+// Format last active date for display
+function formatLastActive(dateString) {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now - date;
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  
+  return date.toLocaleDateString();
 }
 
 // ======= TESTING FUNCTIONS =======
@@ -1560,8 +2195,15 @@ auth.onAuthStateChanged(user => {
   if (user) {
     // User is logged in
     console.log('Auth state changed: user logged in');
+    
+    // Ensure user's display name is saved to Firestore
+    ensureUserDisplayNameInFirestore(user);
+    
     updateDashboardUI();
     loadUserProgress();
+    
+    // Set up real-time leaderboard listener
+    setupLeaderboardListener();
   } else {
     // User is logged out
     console.log('Auth state changed: user logged out');
@@ -1570,6 +2212,12 @@ auth.onAuthStateChanged(user => {
     
     // Clear local cache when user logs out
     clearCachedAuthData();
+    
+    // Remove leaderboard listener
+    if (leaderboardListener) {
+      leaderboardListener();
+      leaderboardListener = null;
+    }
     
     updateDashboardUI();
   }

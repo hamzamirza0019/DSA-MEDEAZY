@@ -59,7 +59,11 @@ function showDashboard() {
     
     renderDashboard(); // Show progress across topics
     
-    // Load leaderboard if function exists
+    // Set up leaderboard listener and load leaderboard
+    if (typeof setupLeaderboardListener === 'function') {
+        setupLeaderboardListener();
+    }
+    
     if (typeof renderLeaderboard === 'function') {
         renderLeaderboard();
     }
@@ -385,6 +389,7 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
     }, 2000);
+    
 });
 
 
