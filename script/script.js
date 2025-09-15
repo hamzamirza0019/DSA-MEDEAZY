@@ -320,24 +320,48 @@ window.onclick = function(event) {
 // ======= FORM HANDLERS =======
 function handleLogin(event) {
     event.preventDefault();
+    
+    // Check current session before proceeding
+    if (typeof checkCurrentSessionBeforeLogin === 'function') {
+        if (checkCurrentSessionBeforeLogin()) {
+            closeModal('loginModal');
+            return;
+        }
+    }
+    
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
     
     if (typeof signInWithEmail === 'function') {
         signInWithEmail(email, password);
-        closeModal('loginModal');
+        // closeModal will be called by the auth function
+    } else {
+        console.error('signInWithEmail function not available');
+        showNotification('Authentication service not available', 'error');
     }
 }
 
 function handleSignup(event) {
     event.preventDefault();
+    
+    // Check current session before proceeding
+    if (typeof checkCurrentSessionBeforeLogin === 'function') {
+        if (checkCurrentSessionBeforeLogin()) {
+            closeModal('signupModal');
+            return;
+        }
+    }
+    
     const name = document.getElementById('signupName').value;
     const email = document.getElementById('signupEmail').value;
     const password = document.getElementById('signupPassword').value;
     
     if (typeof signUpWithEmail === 'function') {
         signUpWithEmail(email, password, name);
-        closeModal('signupModal');
+        // closeModal will be called by the auth function
+    } else {
+        console.error('signUpWithEmail function not available');
+        showNotification('Authentication service not available', 'error');
     }
 }
 
@@ -362,3 +386,367 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }, 2000);
 });
+
+
+
+    // Disable all option buttons after selection
+
+    buttons.forEach(btn => btn.disabled = true);
+
+
+
+    // Check correctness
+
+    if (answerIndex === question.correct) {
+
+        buttons[answerIndex].classList.add('correct');
+
+        score++;
+
+    } else {
+
+        buttons[answerIndex].classList.add('incorrect');
+
+        buttons[question.correct].classList.add('correct');
+
+    }
+
+
+
+    // Store the user's answer
+
+    userAnswers[currentQuestionIndex] = answerIndex;
+
+
+
+    // Show explanation
+
+    const explanationEl = document.getElementById('explanationText');
+
+    explanationEl.textContent = question.explanation;
+
+    explanationEl.classList.add('show');
+
+
+
+    // Show next button
+
+    const nextBtn = document.getElementById('nextBtn');
+
+    if (nextBtn) nextBtn.style.display = 'inline-block';
+
+
+
+
+
+
+
+// ======= GO TO NEXT QUESTION / SHOW RESULT =======
+
+function goToNext() {
+
+    if (currentQuestionIndex < currentQuestions.length - 1) {
+
+        currentQuestionIndex++;
+
+        renderQuestion();
+
+    } else {
+
+        // Mark the topic as completed
+
+        const topic = topics.find(t => t.id === selectedTopic);
+
+        if (topic) {
+
+            topic.completed = currentQuestions.length; // Mark all questions as completed for this topic
+
+        }
+
+        
+
+        // Save quiz result to Firebase
+
+        if (typeof saveQuizResult === 'function') {
+
+            saveQuizResult(selectedTopic, score, currentQuestions.length);
+
+        }
+
+        
+
+        showResultsPage(); // Quiz ends, show results
+
+    }
+
+}
+
+
+
+
+
+// ======= SHOW FINAL RESULT =======
+
+function renderResults() {
+
+    const percentage = Math.round((score / currentQuestions.length) * 100);
+
+    document.getElementById('scorePercentage').textContent = percentage + '%';
+
+    document.getElementById('scoreText').textContent = `Your Score: ${score}/${currentQuestions.length}`;
+
+
+
+    // Render stars based on score
+
+    const starsContainer = document.getElementById('starsContainer');
+
+    starsContainer.innerHTML = '';
+
+    const starCount = Math.floor(percentage / 20);
+
+
+
+    for (let i = 0; i < 5; i++) {
+
+        const star = document.createElement('span');
+
+        star.className = i < starCount ? 'star' : 'star empty';
+
+        star.textContent = '⭐';
+
+        starsContainer.appendChild(star);
+
+    }
+
+}
+
+
+
+
+
+// ======= SHOW DASHBOARD WITH TOPIC PROGRESS =======
+
+function renderDashboard() {
+
+    const topicProgress = document.getElementById('topicProgress');
+
+    if (!topicProgress) return;
+
+
+
+    topicProgress.innerHTML = ''; // Clear existing
+
+
+
+    topics.forEach(topic => {
+
+        const progressItem = document.createElement('div');
+
+        progressItem.className = 'topic-progress-item';
+
+        
+
+        const totalQuestions = questionsData[topic.id]?.length || 0;
+
+        const completed = topic.completed || 0;
+
+        const progressPercentage = totalQuestions > 0 ? Math.round((completed / totalQuestions) * 100) : 0;
+
+
+
+        progressItem.innerHTML = `
+
+            <div class="topic-progress-info">
+
+                <span class="topic-icon">${topic.icon}</span>
+
+                <div>
+
+                    <div class="topic-title">${topic.name}</div>
+
+                    <div class="topic-subtitle">${completed}/${totalQuestions} completed</div>
+
+                </div>
+
+            </div>
+
+            <div class="topic-progress-stats">
+
+                <div class="topic-progress-bar">
+
+                    <div class="progress-bar">
+
+                        <div class="progress-fill" style="width: ${progressPercentage}%"></div>
+
+                    </div>
+
+                </div>
+
+                <div class="difficulty-badge difficulty-${topic.difficulty.toLowerCase()}">
+
+                    ${topic.difficulty}
+
+                </div>
+
+            </div>
+
+        `;
+
+        topicProgress.appendChild(progressItem);
+
+    });
+
+}
+
+
+
+
+
+// ======= MODAL FUNCTIONS =======
+
+function showLoginModal() {
+
+    document.getElementById('loginModal').style.display = 'block';
+
+    document.getElementById('signupModal').style.display = 'none';
+
+}
+
+
+
+function showSignupModal() {
+
+    document.getElementById('signupModal').style.display = 'block';
+
+    document.getElementById('loginModal').style.display = 'none';
+
+}
+
+
+
+function closeModal(modalId) {
+
+    document.getElementById(modalId).style.display = 'none';
+
+}
+
+
+
+// Close modal when clicking outside
+
+window.onclick = function(event) {
+
+    const loginModal = document.getElementById('loginModal');
+
+    const signupModal = document.getElementById('signupModal');
+
+    
+
+    if (event.target === loginModal) {
+
+        loginModal.style.display = 'none';
+
+    }
+
+    if (event.target === signupModal) {
+
+        signupModal.style.display = 'none';
+
+    }
+
+}
+
+
+
+// ======= FORM HANDLERS =======
+
+function handleLogin(event) {
+
+    event.preventDefault();
+
+    const email = document.getElementById('loginEmail').value;
+
+    const password = document.getElementById('loginPassword').value;
+
+    
+
+    if (typeof signInWithEmail === 'function') {
+
+        signInWithEmail(email, password);
+
+        closeModal('loginModal');
+
+    }
+
+}
+
+
+
+function handleSignup(event) {
+
+    event.preventDefault();
+
+    const name = document.getElementById('signupName').value;
+
+    const email = document.getElementById('signupEmail').value;
+
+    const password = document.getElementById('signupPassword').value;
+
+    
+
+    if (typeof signUpWithEmail === 'function') {
+
+        signUpWithEmail(email, password, name);
+
+        closeModal('signupModal');
+
+    }
+
+}
+
+
+
+// ======= INITIALIZE ON PAGE LOAD =======
+
+document.addEventListener('DOMContentLoaded', function () {
+
+    showHome(); // Start from home page
+
+    
+
+    // Initialize auth UI after Firebase loads
+
+    setTimeout(() => {
+
+        if (typeof updateAuthUI === 'function') {
+
+            updateAuthUI();
+
+        } else {
+
+            console.log('Firebase not loaded, showing fallback UI');
+
+            // Show fallback auth UI
+
+            const authButtons = document.getElementById('authButtons');
+
+            if (authButtons) {
+
+                authButtons.innerHTML = `
+
+                    <button class="btn btn-outline btn-sm" onclick="alert('Firebase not loaded. Please refresh the page.')">Login</button>
+
+                    <button class="btn btn-primary btn-sm" onclick="alert('Firebase not loaded. Please refresh the page.')">Sign Up</button>
+
+                `;
+
+            }
+
+        }
+
+    }, 2000);
+
+});
+
+
